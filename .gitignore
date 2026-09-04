@@ -1,0 +1,8 @@
+node_modules
+dist
+client/dist
+worker/dist
+.wrangler
+.svelte-check
+.dev.vars
+*.log

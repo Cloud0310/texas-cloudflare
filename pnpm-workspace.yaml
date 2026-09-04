@@ -1,0 +1,8 @@
+packages:
+  - client
+  - shared
+  - worker
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true

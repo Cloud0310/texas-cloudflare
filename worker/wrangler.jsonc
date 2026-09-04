@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "texas-holdem",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-29",
+  "routes": [
+    {
+      "pattern": "texas.cloud0310.cn",
+      "custom_domain": true,
+    },
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "../client/dist",
+    "not_found_handling": "single-page-application",
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "POKER_TABLE",
+        "class_name": "PokerTable",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PokerTable"],
+    },
+  ],
+}

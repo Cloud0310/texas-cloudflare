@@ -1,0 +1,23 @@
+{
+  "name": "@texas/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsgo --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@sveltejs/vite-plugin-svelte": "latest",
+    "@texas/shared": "workspace:*",
+    "svelte": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@typescript/native": "npm:typescript@7",
+    "svelte-check": "latest",
+    "typescript": "^6.0.3"
+  }
+}

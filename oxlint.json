@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "rules": {
+    "eslint/no-unassigned-vars": "off"
+  },
+  "ignorePatterns": ["client/dist", "worker/dist", ".wrangler", "node_modules"]
+}

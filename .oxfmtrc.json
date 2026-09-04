@@ -1,0 +1,4 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": ["client/dist", "worker/dist", ".wrangler", "node_modules"]
+}

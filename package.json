@@ -1,0 +1,19 @@
+{
+  "name": "texas-holdem",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @texas/worker dev",
+    "dev:client": "pnpm --filter @texas/client dev",
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "deploy:worker": "pnpm --filter @texas/worker run deploy",
+    "lint": "oxlint .",
+    "format": "oxfmt --write ."
+  },
+  "devDependencies": {
+    "oxfmt": "latest",
+    "oxlint": "latest",
+    "typescript": "latest"
+  }
+}
