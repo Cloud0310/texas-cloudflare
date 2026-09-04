@@ -85,9 +85,8 @@
     </div>
     <div class="status-actions">
       <span class:online={connectionStatus === "connected"} class="connection-status">{connectionStatus}</span>
-      <span>Pot {livePot}</span>
-      <button onclick={() => void copyInvite()}>{copyStatus || "Copy invite"}</button>
-      <button onclick={onleave}>Leave</button>
+      <button class="ghost" onclick={() => void copyInvite()}>{copyStatus || "Copy invite"}</button>
+      <button class="ghost" onclick={onleave}>Leave</button>
     </div>
   </header>
 
@@ -103,6 +102,9 @@
     {/each}
 
     <div class="board-zone">
+      {#if livePot > 0}
+        <div class="pot-pill"><span>Pot</span><strong>{livePot}</strong></div>
+      {/if}
       <div class="community">
         {#each Array(5) as _, index}
           <Card card={tableState.community[index] ?? null} />

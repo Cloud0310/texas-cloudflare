@@ -8,9 +8,9 @@
 
 <div class:back={!card} class:red class="card">
   {#if card}
-    <span>{card.rank}</span>
-    <strong>{symbol[card.suit]}</strong>
+    <span class="corner"><span>{card.rank}</span><span>{symbol[card.suit]}</span></span>
+    <span class="pip" aria-hidden="true">{symbol[card.suit]}</span>
   {:else}
-    <span>◆</span>
+    <span class="pip" aria-hidden="true">◆</span>
   {/if}
 </div>

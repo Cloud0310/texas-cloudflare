@@ -95,8 +95,8 @@
     <button onclick={onnextHand}>Next hand</button>
   {:else}
     <div class="action-menu" aria-label="Poker actions">
-      <button disabled={!canAct} onclick={() => onaction({ type: "fold" })}>Fold</button>
-      <button disabled={!canAct || facingBet} onclick={() => onaction({ type: "check" })}>Check</button>
+      <button class="danger" disabled={!canAct} onclick={() => onaction({ type: "fold" })}>Fold</button>
+      <button class="ghost" disabled={!canAct || facingBet} onclick={() => onaction({ type: "check" })}>Check</button>
       <button disabled={!canAct || hasStreetBet} onclick={commitBet}>Bet</button>
       <button disabled={!canAct || !facingBet} onclick={() => onaction({ type: "call" })}>
         {facingBet ? `Call ${tableState.callAmount}` : "Call"}
