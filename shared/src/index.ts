@@ -1,7 +1,7 @@
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
 export type Rank = "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "T" | "J" | "Q" | "K" | "A";
 
-export const TABLE_STATE_VERSION = 4;
+export const TABLE_STATE_VERSION = 5;
 
 export type Card = {
   rank: Rank;
@@ -45,10 +45,12 @@ export type TableState = {
   community: Card[];
   pot: number;
   phase: GamePhase;
+  showdown: boolean;
   dealerIndex: number;
   currentPlayerId: string | null;
   minBet: number;
   callAmount: number;
+  canRaise: boolean;
   winners: Winner[];
   message: string;
   handNumber: number;

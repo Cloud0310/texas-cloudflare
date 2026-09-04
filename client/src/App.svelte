@@ -7,9 +7,11 @@
   type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "offline";
 
   const params = new URLSearchParams(window.location.search);
+  const invitedTableId = params.get("table");
 
-  let tableId = params.get("table") ?? localStorage.getItem("tableId") ?? "";
-  let playerId = params.get("player") ?? localStorage.getItem("playerId");
+  let tableId = invitedTableId ?? localStorage.getItem("tableId") ?? "";
+  let playerId =
+    params.get("player") ?? (invitedTableId ? null : localStorage.getItem("playerId"));
   let state: TableState | null = null;
   let socket: WebSocket | null = null;
   let notice = "";

@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     clampAmount,
+    currentStreetBet,
     heroForState,
     livePot as livePotForState,
     type PlayerAction,
@@ -29,9 +30,12 @@
   let canStart = $derived(tableState.phase === "waiting" && tableState.players.length >= 2);
   let complete = $derived(tableState.phase === "complete");
   let hero = $derived(heroForState(tableState, playerId));
+  let currentActor = $derived(
+    tableState.players.find((player) => player.id === tableState.currentPlayerId),
+  );
   let canAct = $derived(isTurn && Boolean(hero) && !hero?.folded && !hero?.allIn && (hero?.chips ?? 0) > 0);
   let livePot = $derived(livePotForState(tableState));
-  let streetBet = $derived(Math.max(0, ...tableState.players.map((player) => player.bet)));
+  let streetBet = $derived(currentStreetBet(tableState, currentActor));
   let hasStreetBet = $derived(streetBet > 0);
   let maxCommit = $derived(hero?.chips ?? amount);
   let maxRaiseTo = $derived((hero?.bet ?? 0) + maxCommit);
@@ -40,7 +44,9 @@
   let raiseInputMin = $derived(Math.min(minRaiseTo, maxRaiseTo));
   let betAmount = $derived(clampAmount(amount, betInputMin, maxCommit));
   let raiseTo = $derived(clampAmount(amount, raiseInputMin, maxRaiseTo));
-  let canRaiseAmount = $derived(raiseTo > streetBet && (raiseTo >= minRaiseTo || raiseTo === maxRaiseTo));
+  let canRaiseAmount = $derived(
+    tableState.canRaise && raiseTo > streetBet && (raiseTo >= minRaiseTo || raiseTo === maxRaiseTo),
+  );
   let amountHelp = $derived(
     hasStreetBet && facingBet
       ? `Call is ${tableState.callAmount}. Minimum raise total is ${minRaiseTo}.`

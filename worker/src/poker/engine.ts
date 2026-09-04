@@ -17,6 +17,7 @@ export type InternalTable = Omit<TableState, "players"> & {
   players: Player[];
   deck: Card[];
   actedPlayerIds: string[];
+  actedPlayerBets: Record<string, number>;
 };
 
 export function createTable(id: string): InternalTable {
@@ -27,13 +28,16 @@ export function createTable(id: string): InternalTable {
     players: [],
     deck: [],
     actedPlayerIds: [],
+    actedPlayerBets: {},
     community: [],
     pot: 0,
     phase: "waiting",
+    showdown: false,
     dealerIndex: -1,
     currentPlayerId: null,
     minBet: bigBlind,
     callAmount: 0,
+    canRaise: false,
     winners: [],
     message: "Waiting for players",
     handNumber: 0,
@@ -49,9 +53,11 @@ export function freshStoredTable(
 }
 
 export function addPlayer(table: InternalTable, name: string): Player {
-  if (table.players.length >= 6) throw new Error("Table is full");
   if (table.phase !== "waiting" && table.phase !== "complete")
     throw new Error("Wait for the next hand to join");
+  for (const player of table.players.filter((player) => !player.connected))
+    removePlayer(table, player);
+  if (table.players.length >= 6) throw new Error("Table is full");
 
   const player: Player = {
     id: crypto.randomUUID(),
@@ -72,10 +78,28 @@ export function addPlayer(table: InternalTable, name: string): Player {
   return player;
 }
 
+export function disconnectPlayer(table: InternalTable, playerId: string): void {
+  const player = table.players.find((candidate) => candidate.id === playerId);
+  if (!player) return;
+
+  player.connected = false;
+  if (table.phase === "waiting" || table.phase === "complete") {
+    removePlayer(table, player);
+    return;
+  }
+  if (player.folded || player.allIn) return;
+
+  player.folded = true;
+  if (table.currentPlayerId === player.id) finishAction(table, player);
+  else maybeCompleteByFolds(table);
+}
+
 export function startHand(table: InternalTable): void {
-  if (table.players.length < 2) throw new Error("Need at least two players");
   if (table.phase !== "waiting" && table.phase !== "complete")
     throw new Error("Finish the current hand before starting another");
+  for (const player of table.players.filter((player) => !player.connected))
+    removePlayer(table, player);
+  if (table.players.length < 2) throw new Error("Need at least two players");
 
   const boughtInPlayers = table.players.filter((player) => player.chips <= 0);
   for (const player of boughtInPlayers) {
@@ -88,8 +112,10 @@ export function startHand(table: InternalTable): void {
   table.community = [];
   table.pot = 0;
   table.phase = "preflop";
+  table.showdown = false;
   table.winners = [];
   table.actedPlayerIds = [];
+  table.actedPlayerBets = {};
   table.dealerIndex = nextSeatedIndex(table, table.dealerIndex);
   table.minBet = bigBlind;
 
@@ -118,14 +144,17 @@ export function startHand(table: InternalTable): void {
   table.players[smallIndex].smallBlind = true;
   table.players[bigIndex].bigBlind = true;
   table.currentPlayerId = table.players[nextActiveIndex(table, bigIndex)]?.id ?? null;
+  table.canRaise = Boolean(table.currentPlayerId);
   table.callAmount = callAmount(table);
   const buyInMessage = boughtInPlayers.length
     ? ` ${boughtInPlayers.map((player) => player.name).join(", ")} bought back in.`
     : "";
   table.message = `Hand ${table.handNumber}: preflop betting.${buyInMessage}`;
+  if (!table.currentPlayerId) runOutBoard(table);
 }
 
 export function applyAction(table: InternalTable, playerId: string, action: PlayerAction): void {
+  if (!action || typeof action !== "object") throw new Error("Invalid action");
   const player = table.players.find((candidate) => candidate.id === playerId);
   if (!player) throw new Error("Unknown player");
   if (table.currentPlayerId !== playerId) throw new Error("It is not your turn");
@@ -143,6 +172,7 @@ export function applyAction(table: InternalTable, playerId: string, action: Play
     if (toCall <= 0) throw new Error("Nothing to call");
     moveChips(player, toCall);
   } else if (action.type === "bet") {
+    validateChipAmount(action.amount);
     if (tableBet > 0) throw new Error("Use raise after a bet exists");
     if (action.amount > player.chips) throw new Error("Bet cannot exceed your stack");
     const committed = committedAmount(player, action.amount);
@@ -152,8 +182,12 @@ export function applyAction(table: InternalTable, playerId: string, action: Play
     if (committed >= bigBlind) {
       table.minBet = committed;
       table.actedPlayerIds = [];
+      table.actedPlayerBets = {};
     }
   } else if (action.type === "raise") {
+    validateChipAmount(action.amount);
+    if (!canPlayerRaise(table, player))
+      throw new Error("Betting was not reopened by the short all-in raises");
     if (tableBet <= 0) throw new Error("Use bet when no bet exists");
     const targetBet = action.amount;
     const committed = targetBet - player.bet;
@@ -167,10 +201,16 @@ export function applyAction(table: InternalTable, playerId: string, action: Play
     if (raiseBy >= table.minBet) {
       table.minBet = raiseBy;
       table.actedPlayerIds = [];
+      table.actedPlayerBets = {};
     }
-  }
+  } else throw new Error("Invalid action");
 
+  finishAction(table, player);
+}
+
+function finishAction(table: InternalTable, player: Player): void {
   table.actedPlayerIds.push(player.id);
+  table.actedPlayerBets[player.id] = currentBet(table);
   if (maybeCompleteByFolds(table)) return;
   if (bettingRoundComplete(table)) {
     if (shouldRunOutBoard(table)) runOutBoard(table);
@@ -179,14 +219,21 @@ export function applyAction(table: InternalTable, playerId: string, action: Play
     table.currentPlayerId =
       table.players[nextActiveIndex(table, table.players.indexOf(player))]?.id ?? null;
 
+  table.canRaise = canCurrentPlayerRaise(table);
   table.callAmount = callAmount(table);
 }
 
 export function publicState(table: InternalTable, viewerId: string | null): TableState {
-  const reveal = table.phase === "complete";
-  const { deck: _deck, actedPlayerIds: _actedPlayerIds, ...state } = table;
+  const reveal = table.phase === "complete" && table.showdown;
+  const {
+    deck: _deck,
+    actedPlayerIds: _actedPlayerIds,
+    actedPlayerBets: _actedPlayerBets,
+    ...state
+  } = table;
   return {
     ...state,
+    canRaise: canCurrentPlayerRaise(table),
     players: state.players.map((player) => ({
       ...player,
       cards:
@@ -200,6 +247,7 @@ export function publicState(table: InternalTable, viewerId: string | null): Tabl
 function advanceStreet(table: InternalTable): void {
   collectBets(table);
   table.actedPlayerIds = [];
+  table.actedPlayerBets = {};
 
   if (!dealNextStreet(table)) {
     showdown(table);
@@ -208,6 +256,7 @@ function advanceStreet(table: InternalTable): void {
 
   table.minBet = bigBlind;
   table.currentPlayerId = table.players[nextActiveIndex(table, table.dealerIndex)]?.id ?? null;
+  table.canRaise = Boolean(table.currentPlayerId);
   table.callAmount = 0;
   table.message = `${table.phase} betting`;
   if (!table.currentPlayerId) advanceStreet(table);
@@ -216,6 +265,7 @@ function advanceStreet(table: InternalTable): void {
 function runOutBoard(table: InternalTable): void {
   collectBets(table);
   table.actedPlayerIds = [];
+  table.actedPlayerBets = {};
 
   while (dealNextStreet(table)) {
     // Deal all remaining public cards before showdown once betting is closed.
@@ -253,12 +303,14 @@ function showdown(table: InternalTable): void {
   const payouts = new Map<string, Winner>();
 
   for (const pot of sidePots(table)) {
-    const eligible = scored.filter((entry) => pot.eligiblePlayerIds.includes(entry.player.id));
-    if (!eligible.length) {
+    if (pot.contributorPlayerIds.length === 1) {
       const refund = table.players.find((player) => player.id === pot.contributorPlayerIds[0]);
-      if (refund && pot.contributorPlayerIds.length === 1) refund.chips += pot.amount;
+      if (refund) refund.chips += pot.amount;
       continue;
     }
+
+    const eligible = scored.filter((entry) => pot.eligiblePlayerIds.includes(entry.player.id));
+    if (!eligible.length) continue;
 
     const best = Math.max(...eligible.map((entry) => entry.score.value));
     const winners = eligible.filter((entry) => entry.score.value === best);
@@ -266,11 +318,14 @@ function showdown(table: InternalTable): void {
   }
 
   table.winners = [...payouts.values()];
+  table.showdown = true;
   table.phase = "complete";
   table.currentPlayerId = null;
+  table.callAmount = 0;
   table.message = table.winners.length
     ? `${table.winners.map((winner) => winner.name).join(", ")} won with ${table.winners[0].description}`
     : "No winners";
+  table.canRaise = false;
 }
 
 function maybeCompleteByFolds(table: InternalTable): boolean {
@@ -288,8 +343,11 @@ function maybeCompleteByFolds(table: InternalTable): boolean {
       amount: table.pot,
     },
   ];
+  table.showdown = false;
   table.phase = "complete";
   table.currentPlayerId = null;
+  table.canRaise = false;
+  table.callAmount = 0;
   table.message = `${winner.name} wins after everyone folded`;
   return true;
 }
@@ -321,7 +379,7 @@ function postBlind(player: Player, amount: number): void {
 }
 
 function moveChips(player: Player, amount: number): void {
-  if (amount <= 0) throw new Error("Amount must be positive");
+  validateChipAmount(amount);
   const committed = Math.min(amount, player.chips);
   player.chips -= committed;
   player.bet += committed;
@@ -329,7 +387,10 @@ function moveChips(player: Player, amount: number): void {
 }
 
 function currentBet(table: InternalTable): number {
-  return Math.max(0, ...table.players.map((player) => player.bet));
+  return Math.max(
+    table.phase === "preflop" ? bigBlind : 0,
+    ...table.players.map((player) => player.bet),
+  );
 }
 
 function callAmount(table: InternalTable): number {
@@ -337,8 +398,13 @@ function callAmount(table: InternalTable): number {
 }
 
 function committedAmount(player: Player, amount: number): number {
-  if (amount <= 0) throw new Error("Amount must be positive");
+  validateChipAmount(amount);
   return Math.min(amount, player.chips);
+}
+
+function validateChipAmount(amount: number): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0)
+    throw new Error("Amount must be a positive whole number");
 }
 
 function sidePots(table: InternalTable): {
@@ -411,6 +477,23 @@ function playerOrder(table: InternalTable, player: Player): number {
 
 function currentPlayer(table: InternalTable): Player | undefined {
   return table.players.find((player) => player.id === table.currentPlayerId);
+}
+
+function canCurrentPlayerRaise(table: InternalTable): boolean {
+  const player = currentPlayer(table);
+  return Boolean(player && canPlayerRaise(table, player));
+}
+
+function canPlayerRaise(table: InternalTable, player: Player): boolean {
+  const previousBet = table.actedPlayerBets[player.id];
+  return previousBet === undefined || currentBet(table) - previousBet >= table.minBet;
+}
+
+function removePlayer(table: InternalTable, player: Player): void {
+  const index = table.players.indexOf(player);
+  if (index < 0) return;
+  table.players.splice(index, 1);
+  if (index <= table.dealerIndex) table.dealerIndex -= 1;
 }
 
 function nextSeatedIndex(table: InternalTable, from: number): number {

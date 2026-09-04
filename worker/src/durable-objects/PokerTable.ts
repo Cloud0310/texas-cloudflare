@@ -4,6 +4,7 @@ import {
   addPlayer,
   applyAction,
   createTable,
+  disconnectPlayer,
   freshStoredTable,
   publicState,
   startHand,
@@ -163,7 +164,7 @@ export class PokerTable extends DurableObject<Env> {
       (candidate) => candidate.playerId === session.playerId,
     );
     if (player && !hasActiveSession) {
-      player.connected = false;
+      disconnectPlayer(this.table, player.id);
       void this.saveAndBroadcast();
     }
   }

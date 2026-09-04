@@ -19,8 +19,7 @@
     if (!trimmed) return "";
 
     try {
-      const url = new URL(trimmed);
-      return url.searchParams.get("table") ?? trimmed;
+      return new URL(trimmed, window.location.origin).searchParams.get("table")?.trim() || trimmed;
     } catch {
       return trimmed;
     }
