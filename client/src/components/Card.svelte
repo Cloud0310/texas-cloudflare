@@ -8,7 +8,7 @@
 
 <div class:back={!card} class:red class="card">
   {#if card}
-    <span class="corner"><span>{card.rank}</span><span>{symbol[card.suit]}</span></span>
+    <span class="corner">{card.rank}</span>
     <span class="pip" aria-hidden="true">{symbol[card.suit]}</span>
   {:else}
     <span class="pip" aria-hidden="true">◆</span>
