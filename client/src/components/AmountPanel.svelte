@@ -4,6 +4,9 @@
 
   type AmountAction = "bet" | "raise";
 
+  const SLIDER_STEPS = 1_000;
+  const CHIP_STEP = 5;
+
   let {
     action,
     minimum,
@@ -28,7 +31,8 @@
 
   let amountPanel: HTMLDialogElement;
   let amountInput: HTMLInputElement;
-  let sliderValue = $state(startingAmount());
+  let sliderValue = $state(0);
+  let selectedAmount = $state(startingAmount());
   let valid = $state(true);
   let title = $derived(action === "raise" ? "Raise to" : "Bet amount");
   let confirmLabel = $derived(action === "raise" ? "Confirm raise" : "Place bet");
@@ -56,17 +60,35 @@
     return Number.isSafeInteger(amount) && amount >= minimum && amount <= maximum;
   }
 
+  function sliderPositionFor(amount: number): number {
+    if (maximum <= minimum) return 0;
+    const progress = Math.log(amount / minimum) / Math.log(maximum / minimum);
+    return Math.round(clampAmount(progress, 0, 1) * SLIDER_STEPS);
+  }
+
+  function amountForSlider(position: number): number {
+    if (position <= 0 || maximum <= minimum) return minimum;
+    if (position >= SLIDER_STEPS) return maximum;
+    const progress = position / SLIDER_STEPS;
+    const amount = minimum * Math.pow(maximum / minimum, progress);
+    return clampAmount(Math.round(amount / CHIP_STEP) * CHIP_STEP, minimum, maximum);
+  }
+
   function setAmount(amount: number): void {
     const next = clampAmount(amount, minimum, maximum);
     amountInput.value = String(next);
-    sliderValue = next;
+    sliderValue = sliderPositionFor(next);
+    selectedAmount = next;
     valid = true;
   }
 
   function handleNumberInput(event: Event & { currentTarget: HTMLInputElement }): void {
     const next = event.currentTarget.valueAsNumber;
     valid = amountIsValid(next);
-    if (valid) sliderValue = next;
+    if (valid) {
+      sliderValue = sliderPositionFor(next);
+      selectedAmount = next;
+    }
   }
 
   function confirm(): void {
@@ -121,12 +143,13 @@
     </div>
     <input
       aria-label="Amount slider"
+      aria-valuetext={`${selectedAmount} chips`}
       type="range"
-      min={minimum}
-      max={maximum}
-      step="5"
+      min="0"
+      max={SLIDER_STEPS}
+      step="1"
       value={sliderValue}
-      oninput={(event) => setAmount(event.currentTarget.valueAsNumber)}
+      oninput={(event) => setAmount(amountForSlider(event.currentTarget.valueAsNumber))}
     />
     <div aria-label="Quick amounts" class="quick-amounts">
       {#each quickAmounts as quick}
