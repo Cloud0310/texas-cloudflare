@@ -157,7 +157,7 @@
   $: if (tableId && playerId && !socket) openSocket(tableId, playerId);
 </script>
 
-<main class="app-shell">
+<main class="app-shell" class:in-table={Boolean(state && tableId && playerId)}>
   {#if state && tableId && playerId}
     <PokerTable
       tableState={state}

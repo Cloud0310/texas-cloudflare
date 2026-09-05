@@ -74,7 +74,7 @@
     onsubmit={(event) => { event.preventDefault(); void join(); }}
   >
     <label>
-      Nickname <span class="label-note">optional</span>
+      <span>Nickname <span class="label-note">optional</span></span>
       <input bind:value={name} maxlength="20" placeholder="RiverRat" autocomplete="nickname" />
     </label>
     <label>
