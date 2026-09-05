@@ -1,12 +1,14 @@
 <script lang="ts">
   import {
-    clampAmount,
     currentStreetBet,
     heroForState,
     livePot as livePotForState,
     type PlayerAction,
     type TableState
   } from "@texas/shared";
+  import AmountPanel from "./AmountPanel.svelte";
+
+  type AmountAction = "bet" | "raise";
 
   let {
     tableState,
@@ -22,7 +24,7 @@
     onnextHand: () => void;
   } = $props();
 
-  let amount = $state(20);
+  let amountAction = $state<AmountAction | null>(null);
 
   let isTurn = $derived(tableState.currentPlayerId === playerId);
   let facingBet = $derived(tableState.callAmount > 0);
@@ -37,58 +39,26 @@
   let livePot = $derived(livePotForState(tableState));
   let streetBet = $derived(currentStreetBet(tableState, currentActor));
   let hasStreetBet = $derived(streetBet > 0);
-  let maxCommit = $derived(hero?.chips ?? amount);
+  let maxCommit = $derived(hero?.chips ?? 0);
   let maxRaiseTo = $derived((hero?.bet ?? 0) + maxCommit);
   let minRaiseTo = $derived(streetBet + tableState.minBet);
   let betInputMin = $derived(Math.min(tableState.minBet, maxCommit));
   let raiseInputMin = $derived(Math.min(minRaiseTo, maxRaiseTo));
-  let betAmount = $derived(clampAmount(amount, betInputMin, maxCommit));
-  let raiseTo = $derived(clampAmount(amount, raiseInputMin, maxRaiseTo));
-  let canRaiseAmount = $derived(
-    tableState.canRaise && raiseTo > streetBet && (raiseTo >= minRaiseTo || raiseTo === maxRaiseTo),
-  );
-  let amountHelp = $derived(
-    hasStreetBet && facingBet
-      ? `Call is ${tableState.callAmount}. Minimum raise total is ${minRaiseTo}.`
-      : hasStreetBet
-        ? `No call required. Minimum raise total is ${minRaiseTo}.`
-      : maxCommit < tableState.minBet
-        ? `Short stack: all in for ${maxCommit}.`
-        : `Minimum bet is ${tableState.minBet} chips.`,
-  );
-  let amountLabel = $derived(hasStreetBet ? "Raise to" : "Bet amount");
-  let amountMin = $derived(hasStreetBet ? raiseInputMin : betInputMin);
-  let amountMax = $derived(hasStreetBet ? maxRaiseTo : maxCommit);
-  let amountValue = $derived(hasStreetBet ? raiseTo : betAmount);
+  let canRaise = $derived(tableState.canRaise && maxRaiseTo > streetBet);
 
-  function setAmount(nextAmount: number): void {
-    if (!Number.isFinite(nextAmount)) return;
-    amount = clampAmount(nextAmount, amountMin, amountMax);
-  }
-
-  function setQuickAmount(fraction: number): void {
-    const stack = hero?.chips ?? 0;
-    setAmount(
-      hasStreetBet
-        ? clampAmount(streetBet + Math.ceil(livePot * fraction), minRaiseTo, (hero?.bet ?? 0) + stack)
-        : clampAmount(Math.ceil(livePot * fraction), tableState.minBet, stack),
-    );
-  }
-
-  function setAllIn(): void {
-    setAmount(hasStreetBet ? maxRaiseTo : hero?.chips ?? amount);
-  }
-
-  function commitBet(): void {
-    onaction({ type: "bet", amount: betAmount });
-  }
-
-  function commitRaise(): void {
-    onaction({ type: "raise", amount: raiseTo });
+  function commitAmount(amount: number): void {
+    const action = amountAction;
+    amountAction = null;
+    if (action) onaction({ type: action, amount });
   }
 
   $effect(() => {
-    if (amount !== amountValue) amount = amountValue;
+    if (
+      !canAct ||
+      (amountAction === "bet" && hasStreetBet) ||
+      (amountAction === "raise" && (!hasStreetBet || !canRaise))
+    )
+      amountAction = null;
   });
 </script>
 
@@ -103,32 +73,35 @@
     <div class="action-menu" aria-label="Poker actions">
       <button class="danger" disabled={!canAct} onclick={() => onaction({ type: "fold" })}>Fold</button>
       <button class="ghost" disabled={!canAct || facingBet} onclick={() => onaction({ type: "check" })}>Check</button>
-      <button disabled={!canAct || hasStreetBet} onclick={commitBet}>Bet</button>
+      <button
+        class:active-amount={amountAction === "bet"}
+        disabled={!canAct || hasStreetBet}
+        aria-controls="amount-panel"
+        aria-expanded={amountAction === "bet"}
+        onclick={() => (amountAction = "bet")}
+      >Bet</button>
       <button disabled={!canAct || !facingBet} onclick={() => onaction({ type: "call" })}>
         {facingBet ? `Call ${tableState.callAmount}` : "Call"}
       </button>
-      <button disabled={!canAct || !hasStreetBet || !canRaiseAmount} onclick={commitRaise}>Raise</button>
+      <button
+        class:active-amount={amountAction === "raise"}
+        disabled={!canAct || !hasStreetBet || !canRaise}
+        aria-controls="amount-panel"
+        aria-expanded={amountAction === "raise"}
+        onclick={() => (amountAction = "raise")}
+      >Raise</button>
     </div>
 
-    <div class="amount-panel">
-      <label>
-        {amountLabel}
-        <input
-          type="number"
-          min={amountMin}
-          max={amountMax}
-          step="5"
-          disabled={!canAct}
-          value={amountValue}
-          oninput={(event) => setAmount(event.currentTarget.valueAsNumber)}
-        />
-      </label>
-      <div class="quick-bets" aria-label="Quick bet amounts">
-        <button type="button" disabled={!canAct} onclick={() => setQuickAmount(1 / 3)}>1/3 pot</button>
-        <button type="button" disabled={!canAct} onclick={() => setQuickAmount(0.5)}>1/2 pot</button>
-        <button type="button" disabled={!canAct} onclick={setAllIn}>All in</button>
-      </div>
-      <span class="action-hint">{amountHelp} Selected: {amountValue}</span>
-    </div>
+    {#if amountAction}
+      <AmountPanel
+        action={amountAction}
+        minimum={amountAction === "raise" ? raiseInputMin : betInputMin}
+        maximum={amountAction === "raise" ? maxRaiseTo : maxCommit}
+        pot={livePot}
+        currentBet={streetBet}
+        onconfirm={commitAmount}
+        oncancel={() => (amountAction = null)}
+      />
+    {/if}
   {/if}
 </section>
