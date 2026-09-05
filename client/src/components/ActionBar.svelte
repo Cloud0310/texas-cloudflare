@@ -64,7 +64,7 @@
 
 <section class="action-bar">
   {#if waitingForPlayers}
-    <span class="action-hint">Waiting for another player. Copy the invite from the table header.</span>
+    <span class="action-hint">Waiting for another player. Open Table menu to copy the invite.</span>
   {:else if canStart}
     <button onclick={onstart}>Start hand</button>
   {:else if complete}

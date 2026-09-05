@@ -9,6 +9,7 @@
   import ActionBar from "./ActionBar.svelte";
   import Card from "./Card.svelte";
   import PlayerSeat from "./PlayerSeat.svelte";
+  import TableStatusMenu from "./TableStatusMenu.svelte";
 
   const MAX_SEATS = 6;
   const SEAT_SLOTS_BY_TOTAL: Record<number, readonly number[]> = {
@@ -59,74 +60,84 @@
     return players.map((player, index) => ({ player, slot: slots[index] ?? index }));
   });
   let livePot = $derived(livePotForState(tableState));
-  let shareUrl = $derived(`${window.location.origin}${window.location.pathname}?table=${tableState.id}`);
-  let copyStatus = $state("");
+  let actionPrompt = $derived(
+    tableState.currentPlayerId === playerId
+      ? tableState.callAmount > 0
+        ? `Your turn · Call ${tableState.callAmount} to stay in`
+        : "Your turn"
+      : tableState.message,
+  );
 
   function active(player: PublicPlayer): boolean {
     return tableState.currentPlayerId === player.id;
   }
-
-  async function copyInvite(): Promise<void> {
-    copyStatus = "";
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      copyStatus = "Copied";
-    } catch {
-      copyStatus = "Copy failed";
-    }
-  }
 </script>
 
 <section class="table-page">
-  <header class="status-bar">
-    <div>
-      <span class="eyebrow">Table {tableState.id.slice(0, 8)}</span>
-      <h1>{tableState.phase}</h1>
+  <header class="table-header">
+    <div class="table-badge">
+      <span aria-hidden="true">♠</span>
+      <div>
+        <h1>{tableState.phase}</h1>
+        <small>Hand {tableState.handNumber}</small>
+      </div>
     </div>
-    <div class="status-actions">
-      <span class:online={connectionStatus === "connected"} class="connection-status">{connectionStatus}</span>
-      <button class="ghost" onclick={() => void copyInvite()}>{copyStatus || "Copy invite"}</button>
-      <button class="ghost" onclick={onleave}>Leave</button>
-    </div>
+    <TableStatusMenu {tableState} {connectionStatus} {onleave} />
   </header>
 
   <div class="felt">
-    {#each seatedPlayers as seat (seat.player.id)}
-      <div class={`seat-slot seat-slot-${seat.slot}`}>
-        <PlayerSeat
-          player={seat.player}
-          hero={seat.player.id === playerId}
-          active={active(seat.player)}
-        />
-      </div>
-    {/each}
+    <div class="felt-grid">
+      {#each seatedPlayers as seat (seat.player.id)}
+        <div class={`seat-slot seat-slot-${seat.slot}`}>
+          <PlayerSeat
+            player={seat.player}
+            hero={seat.player.id === playerId}
+            active={active(seat.player)}
+          />
+        </div>
+      {/each}
 
-    <div class="board-zone">
-      {#if livePot > 0}
-        <div class="pot-pill"><span>Pot</span><strong>{livePot}</strong></div>
-      {/if}
-      <div class="community">
-        {#each Array(5) as _, index}
-          <Card card={tableState.community[index] ?? null} />
-        {/each}
-      </div>
-      <p>{tableState.message}</p>
-      {#if notice}<p class="error">{notice}</p>{/if}
-      {#if tableState.winners.length}
-        <div class="winners">
-          {#each tableState.winners as winner}
-            <span>{winner.name}: +{winner.amount} ({winner.description})</span>
+      <div class="board-zone">
+        <span class="table-wordmark" aria-hidden="true">TEXAS <span>HOLD’EM</span></span>
+        {#if livePot > 0}
+          <div class="pot-pill"><span>Pot</span><strong>{livePot}</strong></div>
+        {/if}
+        <div class="community">
+          {#each Array(5) as _, index}
+            <Card card={tableState.community[index] ?? null} />
           {/each}
         </div>
-      {/if}
+        {#if tableState.winners.length}
+          <button type="button" class="result-trigger ghost" popovertarget="hand-results">View hand result ↗</button>
+        {:else}
+          <p title={tableState.message}>{tableState.message}</p>
+        {/if}
+      </div>
     </div>
   </div>
 
-  <ActionBar
-    {tableState}
-    {playerId}
-    onaction={onaction}
-    onstart={onstart}
-    onnextHand={onnextHand}
-  />
+  {#if notice}<p class="table-notice" role="alert">{notice}</p>{/if}
+
+  <footer class="action-dock">
+    <span class="turn-note" title={actionPrompt}>{actionPrompt}</span>
+    <ActionBar {tableState} {playerId} {onaction} {onstart} {onnextHand} />
+  </footer>
+
+  {#if tableState.winners.length}
+    <div id="hand-results" popover="auto" role="dialog" aria-label="Hand results" class="hand-results">
+      <header>
+        <h2>Hand {tableState.handNumber} results</h2>
+        <button type="button" class="ghost" popovertarget="hand-results" popovertargetaction="hide" aria-label="Close results">×</button>
+      </header>
+      <p>{tableState.message}</p>
+      <ul>
+        {#each tableState.winners as winner}
+          <li>
+            <strong>{winner.name} <span>+{winner.amount}</span></strong>
+            <small>{winner.description}</small>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
 </section>

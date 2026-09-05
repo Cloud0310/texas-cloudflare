@@ -49,7 +49,6 @@
   onMount(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     amountPanel.showModal();
-    amountInput.focus();
     return () => {
       if (amountPanel.open) amountPanel.close();
       opener?.focus();
@@ -99,6 +98,7 @@
   }
 
   function handleBackdropClick(event: MouseEvent): void {
+    if (event.target !== amountPanel) return;
     const bounds = amountPanel.getBoundingClientRect();
     const inside =
       event.clientX >= bounds.left &&
@@ -156,7 +156,8 @@
   </div>
 
   <div class="amount-actions">
-    <button class="ghost close-amount" type="button" onclick={oncancel} aria-label="Cancel">×</button>
+    <!-- svelte-ignore a11y_autofocus (The modal starts on a non-editable control so opening it does not summon the mobile keyboard.) -->
+    <button class="ghost close-amount" type="button" autofocus onclick={oncancel} aria-label="Cancel">×</button>
     <button type="button" disabled={!valid} onclick={confirm}>{confirmLabel}</button>
   </div>
 </dialog>
@@ -168,9 +169,10 @@
   }
 
   .amount-panel {
+    --amount-bottom: calc(96px + env(safe-area-inset-bottom));
     position: fixed;
     inset-block-start: auto;
-    inset-block-end: calc(var(--gap) + 4.8rem);
+    inset-block-end: var(--amount-bottom);
     inset-inline-start: 50%;
     inset-inline-end: auto;
     display: grid;
@@ -179,7 +181,7 @@
     gap: 0;
     inline-size: min(920px, calc(100vw - 2rem));
     margin: 0;
-    max-block-size: calc(100dvh - 7rem);
+    max-block-size: calc(100dvh - var(--amount-bottom) - 16px - env(safe-area-inset-top));
     overflow: auto;
     border: 1px solid rgba(229, 185, 90, 0.28);
     border-radius: 16px;
@@ -290,9 +292,7 @@
 
   @media (max-width: 760px) {
     .amount-panel {
-      inset-block-end: calc(var(--gap) + 7.8rem);
       grid-template-columns: 112px 1fr;
-      max-block-size: calc(100dvh - 10rem);
     }
 
     .amount-actions {
@@ -326,5 +326,9 @@
     .amount-actions {
       grid-column: auto;
     }
+  }
+
+  @media (max-height: 500px) {
+    .amount-panel { --amount-bottom: calc(64px + env(safe-area-inset-bottom)); }
   }
 </style>
