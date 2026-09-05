@@ -46,15 +46,6 @@
   let raiseInputMin = $derived(Math.min(minRaiseTo, maxRaiseTo));
   let canRaise = $derived(tableState.canRaise && maxRaiseTo > streetBet);
 
-  function toggleAmountPanel(action: AmountAction): void {
-    amountAction = amountAction === action ? null : action;
-  }
-
-  function commitAction(action: PlayerAction): void {
-    amountAction = null;
-    onaction(action);
-  }
-
   function commitAmount(amount: number): void {
     const action = amountAction;
     amountAction = null;
@@ -80,16 +71,16 @@
     <button onclick={onnextHand}>Next hand</button>
   {:else}
     <div class="action-menu" aria-label="Poker actions">
-      <button class="danger" disabled={!canAct} onclick={() => commitAction({ type: "fold" })}>Fold</button>
-      <button class="ghost" disabled={!canAct || facingBet} onclick={() => commitAction({ type: "check" })}>Check</button>
+      <button class="danger" disabled={!canAct} onclick={() => onaction({ type: "fold" })}>Fold</button>
+      <button class="ghost" disabled={!canAct || facingBet} onclick={() => onaction({ type: "check" })}>Check</button>
       <button
         class:active-amount={amountAction === "bet"}
         disabled={!canAct || hasStreetBet}
         aria-controls="amount-panel"
         aria-expanded={amountAction === "bet"}
-        onclick={() => toggleAmountPanel("bet")}
+        onclick={() => (amountAction = "bet")}
       >Bet</button>
-      <button disabled={!canAct || !facingBet} onclick={() => commitAction({ type: "call" })}>
+      <button disabled={!canAct || !facingBet} onclick={() => onaction({ type: "call" })}>
         {facingBet ? `Call ${tableState.callAmount}` : "Call"}
       </button>
       <button
@@ -97,7 +88,7 @@
         disabled={!canAct || !hasStreetBet || !canRaise}
         aria-controls="amount-panel"
         aria-expanded={amountAction === "raise"}
-        onclick={() => toggleAmountPanel("raise")}
+        onclick={() => (amountAction = "raise")}
       >Raise</button>
     </div>
 

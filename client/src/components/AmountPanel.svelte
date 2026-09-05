@@ -31,8 +31,8 @@
 
   let amountPanel: HTMLDialogElement;
   let amountInput: HTMLInputElement;
-  let sliderValue = $state(0);
   let selectedAmount = $state(startingAmount());
+  let sliderValue = $derived(sliderPositionFor(selectedAmount));
   let valid = $state(true);
   let title = $derived(action === "raise" ? "Raise to" : "Bet amount");
   let confirmLabel = $derived(action === "raise" ? "Confirm raise" : "Place bet");
@@ -77,7 +77,6 @@
   function setAmount(amount: number): void {
     const next = clampAmount(amount, minimum, maximum);
     amountInput.value = String(next);
-    sliderValue = sliderPositionFor(next);
     selectedAmount = next;
     valid = true;
   }
@@ -85,10 +84,7 @@
   function handleNumberInput(event: Event & { currentTarget: HTMLInputElement }): void {
     const next = event.currentTarget.valueAsNumber;
     valid = amountIsValid(next);
-    if (valid) {
-      sliderValue = sliderPositionFor(next);
-      selectedAmount = next;
-    }
+    if (valid) selectedAmount = next;
   }
 
   function confirm(): void {
