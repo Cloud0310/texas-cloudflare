@@ -85,35 +85,33 @@
     <TableStatusMenu {tableState} {connectionStatus} {onleave} />
   </header>
 
-  <div class="table-stage">
-    <div class="felt">
-      <div class="felt-grid">
-        {#each seatedPlayers as seat (seat.player.id)}
-          <div class={`seat-slot seat-slot-${seat.slot}`}>
-            <PlayerSeat
-              player={seat.player}
-              hero={seat.player.id === playerId}
-              active={active(seat.player)}
-            />
-          </div>
-        {/each}
-
-        <div class="board-zone">
-          <span class="table-wordmark" aria-hidden="true">TEXAS <span>HOLD’EM</span></span>
-          {#if livePot > 0}
-            <div class="pot-pill"><span>Pot</span><strong>{livePot}</strong></div>
-          {/if}
-          <div class="community">
-            {#each Array(5) as _, index}
-              <Card card={tableState.community[index] ?? null} />
-            {/each}
-          </div>
-          {#if tableState.winners.length}
-            <button type="button" class="result-trigger ghost" popovertarget="hand-results">View hand result ↗</button>
-          {:else}
-            <p title={tableState.message}>{tableState.message}</p>
-          {/if}
+  <div class="felt">
+    <div class="felt-grid">
+      {#each seatedPlayers as seat (seat.player.id)}
+        <div class={`seat-slot seat-slot-${seat.slot}`}>
+          <PlayerSeat
+            player={seat.player}
+            hero={seat.player.id === playerId}
+            active={active(seat.player)}
+          />
         </div>
+      {/each}
+
+      <div class="board-zone">
+        <span class="table-wordmark" aria-hidden="true">TEXAS <span>HOLD’EM</span></span>
+        {#if livePot > 0}
+          <div class="pot-pill"><span>Pot</span><strong>{livePot}</strong></div>
+        {/if}
+        <div class="community">
+          {#each Array(5) as _, index}
+            <Card card={tableState.community[index] ?? null} />
+          {/each}
+        </div>
+        {#if tableState.winners.length}
+          <button type="button" class="result-trigger ghost" popovertarget="hand-results">View hand result ↗</button>
+        {:else}
+          <p title={tableState.message}>{tableState.message}</p>
+        {/if}
       </div>
     </div>
   </div>

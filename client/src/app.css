@@ -111,7 +111,7 @@ input:focus-visible {
     max(var(--gap), env(safe-area-inset-bottom)) max(var(--gap), env(safe-area-inset-left));
   overflow: clip;
 }
-.app-shell.in-table {
+.app-shell:has(> .table-page) {
   padding: 0;
 }
 
@@ -305,19 +305,13 @@ input:focus-visible {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.table-stage {
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding-inline: max(8px, 1.5vw, env(safe-area-inset-left))
-    max(8px, 1.5vw, env(safe-area-inset-right));
-}
 .felt {
   position: relative;
   isolation: isolate;
-  inline-size: 100%;
-  block-size: 100%;
   min-inline-size: 0;
   min-block-size: 0;
+  margin-inline: max(8px, 1.5vw, env(safe-area-inset-left))
+    max(8px, 1.5vw, env(safe-area-inset-right));
   container-name: table-felt;
   container-type: size;
 }
@@ -339,6 +333,10 @@ input:focus-visible {
   position: absolute;
   inset: 0;
   display: grid;
+  grid-template-areas:
+    ". slot-3 ."
+    "slot-2 board slot-4"
+    "slot-1 slot-0 slot-5";
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
   align-items: center;
@@ -355,26 +353,26 @@ input:focus-visible {
   min-block-size: 0;
 }
 .seat-slot-0 {
-  grid-area: 3 / 2;
+  grid-area: slot-0;
 }
 .seat-slot-1 {
-  grid-area: 3 / 1;
+  grid-area: slot-1;
 }
 .seat-slot-2 {
-  grid-area: 2 / 1;
+  grid-area: slot-2;
 }
 .seat-slot-3 {
-  grid-area: 1 / 2;
+  grid-area: slot-3;
 }
 .seat-slot-4 {
-  grid-area: 2 / 3;
+  grid-area: slot-4;
 }
 .seat-slot-5 {
-  grid-area: 3 / 3;
+  grid-area: slot-5;
 }
 
 .board-zone {
-  grid-area: 2 / 2;
+  grid-area: board;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -524,30 +522,17 @@ input:focus-visible {
 
 @container table-felt (max-width: 600px) and (min-height: 300px) {
   .felt-grid {
+    grid-template-areas:
+      "slot-3 slot-3"
+      "slot-2 slot-4"
+      "board board"
+      "slot-1 slot-5"
+      "slot-0 slot-0";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr);
     gap: min(1.5cqb, 8px) min(4cqi, 20px);
   }
-  .seat-slot-0 {
-    grid-area: 5 / 1 / 6 / 3;
-  }
-  .seat-slot-1 {
-    grid-area: 4 / 1;
-  }
-  .seat-slot-2 {
-    grid-area: 2 / 1;
-  }
-  .seat-slot-3 {
-    grid-area: 1 / 1 / 2 / 3;
-  }
-  .seat-slot-4 {
-    grid-area: 2 / 2;
-  }
-  .seat-slot-5 {
-    grid-area: 4 / 2;
-  }
   .board-zone {
-    grid-area: 3 / 1 / 4 / 3;
     gap: min(1.4cqb, 9px);
   }
   .community {
