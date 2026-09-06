@@ -5,8 +5,10 @@ import {
   applyAction,
   createTable,
   disconnectPlayer,
+  expireDisconnectedPlayers,
   freshStoredTable,
   publicState,
+  reconnectPlayer,
   startHand,
   type InternalTable,
 } from "../poker/engine";
@@ -32,28 +34,27 @@ export class PokerTable extends DurableObject<Env> {
       this.table = freshStoredTable(stored, this.table.id);
       if (stored && stored.stateVersion !== this.table.stateVersion)
         await ctx.storage.put("table", this.table);
-      await this.scheduleCleanup();
+      await this.scheduleAlarm();
     });
   }
 
   async alarm(): Promise<void> {
-    const stored = await this.ctx.storage.get<InternalTable>("table");
-    const expiresAt = stored ? this.cleanupAt(stored) : 0;
-
-    if (!stored || expiresAt <= Date.now()) {
+    if (this.cleanupAt(this.table) <= Date.now()) {
       await this.ctx.storage.deleteAll();
       this.table = createTable(this.table.id);
       this.broadcast();
       return;
     }
 
-    await this.ctx.storage.setAlarm(expiresAt);
+    if (expireDisconnectedPlayers(this.table)) await this.saveAndBroadcast();
+    else await this.scheduleAlarm();
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.syncTableCode(url);
     try {
+      if (expireDisconnectedPlayers(this.table)) await this.saveAndBroadcast();
       if (url.pathname.endsWith("/ws")) return this.handleWebSocket(request, url);
       if (request.method === "GET")
         return Response.json(publicState(this.table, url.searchParams.get("playerId")));
@@ -82,13 +83,13 @@ export class PokerTable extends DurableObject<Env> {
     const session: Session = { playerId: url.searchParams.get("playerId"), socket: server };
     const player = this.table.players.find((candidate) => candidate.id === session.playerId);
     const presenceChanged = Boolean(player && !player.connected);
-    if (player) player.connected = true;
+    if (player) reconnectPlayer(this.table, player.id);
 
     server.accept();
     this.sessions.add(session);
     this.send(session, { type: "hello", tableId: this.table.id, playerId: session.playerId });
     this.sendSnapshot(session);
-    if (presenceChanged) void this.saveAndBroadcast();
+    if (presenceChanged) this.ctx.waitUntil(this.saveAndBroadcast());
 
     server.addEventListener("message", (event) => this.handleSocketMessage(session, event));
     server.addEventListener("close", () => this.closeSession(session));
@@ -131,6 +132,7 @@ export class PokerTable extends DurableObject<Env> {
 
   private async handleSocketMessage(session: Session, event: MessageEvent): Promise<void> {
     try {
+      if (expireDisconnectedPlayers(this.table)) await this.saveAndBroadcast();
       const message = JSON.parse(String(event.data)) as ClientMessage;
       if (message.type === "join") {
         const player = addPlayer(this.table, message.name);
@@ -158,26 +160,30 @@ export class PokerTable extends DurableObject<Env> {
   }
 
   private closeSession(session: Session): void {
-    this.sessions.delete(session);
+    if (!this.sessions.delete(session)) return;
     const player = this.table.players.find((candidate) => candidate.id === session.playerId);
     const hasActiveSession = [...this.sessions].some(
       (candidate) => candidate.playerId === session.playerId,
     );
     if (player && !hasActiveSession) {
       disconnectPlayer(this.table, player.id);
-      void this.saveAndBroadcast();
+      this.ctx.waitUntil(this.saveAndBroadcast());
     }
   }
 
   private async saveAndBroadcast(): Promise<void> {
     this.table.updatedAt = Date.now();
     await this.ctx.storage.put("table", this.table);
-    await this.scheduleCleanup();
+    await this.scheduleAlarm();
     this.broadcast();
   }
 
-  private async scheduleCleanup(): Promise<void> {
-    await this.ctx.storage.setAlarm(this.cleanupAt(this.table));
+  private async scheduleAlarm(): Promise<void> {
+    // Durable Objects have one alarm: wake for the next disconnect deadline
+    // or table cleanup, whichever comes first.
+    await this.ctx.storage.setAlarm(
+      Math.min(this.cleanupAt(this.table), ...Object.values(this.table.disconnectDeadlines)),
+    );
   }
 
   private cleanupAt(table: InternalTable): number {
@@ -203,7 +209,7 @@ export class PokerTable extends DurableObject<Env> {
     try {
       session.socket.send(JSON.stringify(message));
     } catch {
-      this.sessions.delete(session);
+      this.closeSession(session);
     }
   }
 }

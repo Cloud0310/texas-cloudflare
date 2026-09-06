@@ -12,12 +12,14 @@ import { evaluateHand } from "./evaluator";
 const startingChips = 1_000;
 const smallBlind = 5;
 const bigBlind = 10;
+export const DISCONNECT_TIMEOUT_MS = 30_000;
 
 export type InternalTable = Omit<TableState, "players"> & {
   players: Player[];
   deck: Card[];
   actedPlayerIds: string[];
   actedPlayerBets: Record<string, number>;
+  disconnectDeadlines: Record<string, number>;
 };
 
 export function createTable(id: string): InternalTable {
@@ -29,6 +31,7 @@ export function createTable(id: string): InternalTable {
     deck: [],
     actedPlayerIds: [],
     actedPlayerBets: {},
+    disconnectDeadlines: {},
     community: [],
     pot: 0,
     phase: "waiting",
@@ -48,14 +51,18 @@ export function freshStoredTable(
   stored: InternalTable | undefined,
   fallbackId: string,
 ): InternalTable {
-  if (stored?.stateVersion === TABLE_STATE_VERSION) return stored;
+  if (stored?.stateVersion === TABLE_STATE_VERSION)
+    return { ...stored, disconnectDeadlines: stored.disconnectDeadlines ?? {} };
   return createTable(stored?.id ?? fallbackId);
 }
 
 export function addPlayer(table: InternalTable, name: string): Player {
+  expireDisconnectedPlayers(table);
   if (table.phase !== "waiting" && table.phase !== "complete")
     throw new Error("Wait for the next hand to join");
-  for (const player of table.players.filter((player) => !player.connected))
+  for (const player of table.players.filter(
+    (player) => !player.connected && table.disconnectDeadlines[player.id] === undefined,
+  ))
     removePlayer(table, player);
   if (table.players.length >= 6) throw new Error("Table is full");
 
@@ -78,11 +85,37 @@ export function addPlayer(table: InternalTable, name: string): Player {
   return player;
 }
 
-export function disconnectPlayer(table: InternalTable, playerId: string): void {
+export function disconnectPlayer(table: InternalTable, playerId: string, now = Date.now()): void {
   const player = table.players.find((candidate) => candidate.id === playerId);
-  if (!player) return;
+  if (!player || !player.connected) return;
 
   player.connected = false;
+  table.disconnectDeadlines[playerId] = now + DISCONNECT_TIMEOUT_MS;
+}
+
+export function reconnectPlayer(table: InternalTable, playerId: string, now = Date.now()): void {
+  // A delayed alarm must not let a connection arriving after the deadline
+  // recover a hand that has already timed out.
+  expireDisconnectedPlayers(table, now);
+  const player = table.players.find((candidate) => candidate.id === playerId);
+  if (!player) return;
+  player.connected = true;
+  delete table.disconnectDeadlines[playerId];
+}
+
+export function expireDisconnectedPlayers(table: InternalTable, now = Date.now()): boolean {
+  const expired = Object.entries(table.disconnectDeadlines)
+    .filter(([, deadline]) => deadline <= now)
+    .sort((a, b) => a[1] - b[1]);
+  for (const [playerId] of expired) {
+    delete table.disconnectDeadlines[playerId];
+    const player = table.players.find((candidate) => candidate.id === playerId);
+    if (player && !player.connected) expireDisconnectedPlayer(table, player);
+  }
+  return expired.length > 0;
+}
+
+function expireDisconnectedPlayer(table: InternalTable, player: Player): void {
   if (table.phase === "waiting" || table.phase === "complete") {
     removePlayer(table, player);
     return;
@@ -95,8 +128,11 @@ export function disconnectPlayer(table: InternalTable, playerId: string): void {
 }
 
 export function startHand(table: InternalTable): void {
+  expireDisconnectedPlayers(table);
   if (table.phase !== "waiting" && table.phase !== "complete")
     throw new Error("Finish the current hand before starting another");
+  if (Object.keys(table.disconnectDeadlines).length > 0)
+    throw new Error("Waiting for disconnected players to reconnect (up to 30 seconds)");
   for (const player of table.players.filter((player) => !player.connected))
     removePlayer(table, player);
   if (table.players.length < 2) throw new Error("Need at least two players");
@@ -229,6 +265,7 @@ export function publicState(table: InternalTable, viewerId: string | null): Tabl
     deck: _deck,
     actedPlayerIds: _actedPlayerIds,
     actedPlayerBets: _actedPlayerBets,
+    disconnectDeadlines: _disconnectDeadlines,
     ...state
   } = table;
   return {
@@ -493,6 +530,7 @@ function removePlayer(table: InternalTable, player: Player): void {
   const index = table.players.indexOf(player);
   if (index < 0) return;
   table.players.splice(index, 1);
+  delete table.disconnectDeadlines[player.id];
   if (index <= table.dealerIndex) table.dealerIndex -= 1;
 }
 

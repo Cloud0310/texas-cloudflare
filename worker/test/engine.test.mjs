@@ -6,7 +6,11 @@ import {
   applyAction,
   createTable,
   disconnectPlayer,
+  DISCONNECT_TIMEOUT_MS,
+  expireDisconnectedPlayers,
+  freshStoredTable,
   publicState,
+  reconnectPlayer,
   startHand,
 } from "../src/poker/engine.ts";
 import { evaluateHand } from "../src/poker/evaluator.ts";
@@ -301,11 +305,18 @@ test("breaks ties using the best five cards", () => {
   );
 });
 
-test("folds a disconnected player and removes the stale seat before the next hand", () => {
+test("waits 30 seconds before folding a disconnected player and removing their stale seat", () => {
   const { table, players } = startedTable();
+  const now = Date.now();
 
-  disconnectPlayer(table, players[0].id);
+  disconnectPlayer(table, players[0].id, now);
   assert.equal(players[0].connected, false);
+  assert.equal(players[0].folded, false);
+  assert.equal(table.currentPlayerId, players[0].id);
+  assert.equal(expireDisconnectedPlayers(table, now + 29_999), false);
+  assert.equal(players[0].folded, false);
+
+  assert.equal(expireDisconnectedPlayers(table, now + 30_000), true);
   assert.equal(players[0].folded, true);
   assert.equal(table.currentPlayerId, players[1].id);
 
@@ -319,6 +330,170 @@ test("folds a disconnected player and removes the stale seat before the next han
     ["B", "C", "D"],
   );
   assert.equal(table.players[0].dealer, true);
+});
+
+test("reconnecting within the grace period preserves the hand, bet, chips, and turn", () => {
+  const { table, players } = startedTable(["A", "B"]);
+  const now = Date.now();
+  const before = structuredClone(publicState(table, players[0].id));
+
+  disconnectPlayer(table, players[0].id, now);
+  reconnectPlayer(table, players[0].id, now + 29_999);
+  assert.deepEqual(publicState(table, players[0].id), before);
+  assert.deepEqual(table.disconnectDeadlines, {});
+  assert.equal(expireDisconnectedPlayers(table, now + 30_000), false);
+  applyAction(table, players[0].id, { type: "call" });
+  assert.equal(table.currentPlayerId, players[1].id);
+});
+
+test("reconnecting at the deadline cannot bypass a delayed timeout alarm", () => {
+  const { table, players } = startedTable();
+  const now = Date.now();
+
+  disconnectPlayer(table, players[0].id, now);
+  reconnectPlayer(table, players[0].id, now + 30_000);
+  assert.equal(players[0].connected, true);
+  assert.equal(players[0].folded, true);
+  assert.equal(table.currentPlayerId, players[1].id);
+  assert.deepEqual(table.disconnectDeadlines, {});
+});
+
+test("duplicate disconnect events do not extend the deadline, but a new disconnect does", () => {
+  const { table, players } = startedTable();
+  const now = Date.now();
+
+  disconnectPlayer(table, players[0].id, now);
+  disconnectPlayer(table, players[0].id, now + 10_000);
+  assert.equal(table.disconnectDeadlines[players[0].id], now + 30_000);
+
+  reconnectPlayer(table, players[0].id, now + 15_000);
+  disconnectPlayer(table, players[0].id, now + 20_000);
+  assert.equal(table.disconnectDeadlines[players[0].id], now + 50_000);
+  assert.equal(expireDisconnectedPlayers(table, now + 30_000), false);
+  assert.equal(players[0].folded, false);
+  assert.equal(expireDisconnectedPlayers(table, now + 50_000), true);
+  assert.equal(players[0].folded, true);
+});
+
+test("play continues up to a disconnected player's turn during their grace period", () => {
+  const { table, players } = startedTable();
+  const now = Date.now();
+
+  disconnectPlayer(table, players[1].id, now);
+  assert.equal(table.currentPlayerId, players[0].id);
+  applyAction(table, players[0].id, { type: "call" });
+  assert.equal(table.currentPlayerId, players[1].id);
+  assert.equal(players[1].folded, false);
+
+  expireDisconnectedPlayers(table, now + 30_000);
+  assert.equal(players[1].folded, true);
+  assert.equal(table.currentPlayerId, players[2].id);
+});
+
+test("an off-turn timeout folds only that player and leaves the current turn intact", () => {
+  const { table, players } = startedTable();
+  const now = Date.now();
+
+  disconnectPlayer(table, players[1].id, now);
+  expireDisconnectedPlayers(table, now + 30_000);
+  assert.equal(players[1].folded, true);
+  assert.equal(table.currentPlayerId, players[0].id);
+  assert.equal(table.phase, "preflop");
+});
+
+test("heads-up disconnect timeout settles the hand exactly once", () => {
+  const { table, players } = startedTable(["A", "B"]);
+  const now = Date.now();
+
+  disconnectPlayer(table, players[0].id, now);
+  expireDisconnectedPlayers(table, now + 30_000);
+  assert.equal(table.phase, "complete");
+  assert.equal(table.winners[0].playerId, players[1].id);
+  assert.equal(
+    table.players.reduce((sum, player) => sum + player.chips, 0),
+    2_000,
+  );
+
+  const completed = structuredClone(table);
+  assert.equal(expireDisconnectedPlayers(table, now + 30_001), false);
+  assert.deepEqual(table, completed);
+});
+
+test("an all-in player stays eligible for the pot after a disconnect timeout", () => {
+  const { table, players } = startedTable(["A", "B"]);
+  const now = Date.now();
+  applyAction(table, players[0].id, { type: "raise", amount: 1_000 });
+  assert.equal(players[0].allIn, true);
+
+  disconnectPlayer(table, players[0].id, now);
+  expireDisconnectedPlayers(table, now + 30_000);
+  assert.equal(players[0].folded, false);
+  applyAction(table, players[1].id, { type: "call" });
+  assert.equal(table.showdown, true);
+  assert.equal(
+    table.players.reduce((sum, player) => sum + player.chips, 0),
+    2_000,
+  );
+});
+
+test("joining cannot take a waiting player's seat during the reconnect window", () => {
+  const table = createTable("table");
+  const players = ["A", "B", "C", "D", "E", "F"].map((name) => addPlayer(table, name));
+  const now = Date.now();
+
+  disconnectPlayer(table, players[0].id, now);
+  assert.equal(table.players.length, 6);
+  assert.throws(() => addPlayer(table, "G"), /Table is full/);
+  assert.throws(() => startHand(table), /Waiting for disconnected players/);
+
+  expireDisconnectedPlayers(table, now + 30_000);
+  addPlayer(table, "G");
+  assert.deepEqual(
+    table.players.map((player) => player.name),
+    ["B", "C", "D", "E", "F", "G"],
+  );
+});
+
+test("a completed hand retains a disconnected seat until it reconnects or times out", () => {
+  const { table, players } = startedTable(["A", "B"]);
+  const now = Date.now();
+  applyAction(table, players[0].id, { type: "fold" });
+  disconnectPlayer(table, players[0].id, now);
+  addPlayer(table, "C");
+
+  assert.equal(table.players[0].id, players[0].id);
+  assert.throws(() => startHand(table), /Waiting for disconnected players/);
+  reconnectPlayer(table, players[0].id, now + 29_999);
+  startHand(table);
+  assert.equal(table.players.length, 3);
+  assert.equal(players[0].folded, false);
+});
+
+test("disconnect deadlines survive storage reloads and expire independently", () => {
+  const { table, players } = startedTable(["A", "B", "C", "D"]);
+  const now = Date.now();
+  disconnectPlayer(table, players[0].id, now);
+  disconnectPlayer(table, players[1].id, now + 5_000);
+
+  const restored = freshStoredTable(structuredClone(table), "fallback");
+  assert.equal(DISCONNECT_TIMEOUT_MS, 30_000);
+  assert.equal("disconnectDeadlines" in publicState(restored, null), false);
+  expireDisconnectedPlayers(restored, now + 30_000);
+  assert.equal(restored.players[0].folded, true);
+  assert.equal(restored.players[1].folded, false);
+  assert.equal(restored.disconnectDeadlines[players[1].id], now + 35_000);
+  expireDisconnectedPlayers(restored, now + 35_000);
+  assert.equal(restored.players[1].folded, true);
+});
+
+test("existing stored tables gain timeout tracking without resetting their hand", () => {
+  const { table } = startedTable();
+  const stored = structuredClone(table);
+  delete stored.disconnectDeadlines;
+
+  const restored = freshStoredTable(stored, "fallback");
+  assert.deepEqual(restored.disconnectDeadlines, {});
+  assert.deepEqual(publicState(restored, null), publicState(table, null));
 });
 
 test("advances a checked-down heads-up hand through every street", () => {
