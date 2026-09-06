@@ -203,7 +203,7 @@
 
   .amount-block span {
     color: var(--ink-dim);
-    font-size: 0.68rem;
+    font-size: 0.8rem;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -231,7 +231,7 @@
     display: flex;
     justify-content: space-between;
     color: rgba(236, 232, 219, 0.5);
-    font-size: 0.65rem;
+    font-size: 0.8rem;
   }
 
   .range-label strong {
@@ -256,18 +256,18 @@
 
   .quick-amounts button {
     flex: 1;
-    min-block-size: 32px;
+    min-block-size: 44px;
     border-color: var(--line);
     padding: 0.3rem 0.55rem;
     color: var(--ink);
     background: var(--panel-2);
-    font-size: 0.72rem;
+    font-size: 0.875rem;
     white-space: nowrap;
   }
 
   .invalid-amount {
     color: #ff9c9c;
-    font-size: 0.68rem;
+    font-size: 0.8rem;
   }
 
   .amount-actions {
@@ -279,13 +279,13 @@
   }
 
   .amount-actions button {
-    min-block-size: 38px;
+    min-block-size: 44px;
     padding: 0.4rem 0.85rem;
     white-space: nowrap;
   }
 
   .amount-actions .close-amount {
-    inline-size: 38px;
+    inline-size: 44px;
     padding: 0;
     font-size: 1.2rem;
   }

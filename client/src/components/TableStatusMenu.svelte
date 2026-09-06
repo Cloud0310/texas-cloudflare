@@ -52,7 +52,7 @@
 </div>
 
 <style>
-  .menu-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-block-size: 38px; padding: 8px 13px; white-space: nowrap; border-color: var(--line); background: #101b16ee; font-size: 12px; }
+  .menu-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-block-size: 44px; padding: 8px 13px; white-space: nowrap; border-color: var(--line); background: #101b16ee; font-size: 14px; }
   .live-dot { inline-size: 6px; block-size: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--gold); }
   .live-dot.online { background: #8ff0bb; box-shadow: 0 0 9px #8ff0bb55; }
   .live-dot.offline { background: var(--ink-dim); }

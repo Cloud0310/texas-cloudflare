@@ -86,7 +86,7 @@
   </header>
 
   <div class="felt">
-    <div class="felt-grid">
+    <div class="felt-grid" data-players={seatedPlayers.length}>
       {#each seatedPlayers as seat (seat.player.id)}
         <div class={`seat-slot seat-slot-${seat.slot}`}>
           <PlayerSeat

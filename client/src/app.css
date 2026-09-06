@@ -43,7 +43,7 @@ input {
 }
 
 button {
-  min-block-size: 42px;
+  min-block-size: 44px;
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 0.6rem 1.15rem;
@@ -109,7 +109,7 @@ input:focus-visible {
   min-block-size: 0;
   padding: max(var(--gap), env(safe-area-inset-top)) max(var(--gap), env(safe-area-inset-right))
     max(var(--gap), env(safe-area-inset-bottom)) max(var(--gap), env(safe-area-inset-left));
-  overflow: clip;
+  overflow: auto;
 }
 .app-shell:has(> .table-page) {
   padding: 0;
@@ -260,15 +260,15 @@ input:focus-visible {
   }
 }
 
-/* Floating corner controls and bottom action dock, selected in prototype B. */
+/* Keep controls readable; short screens can scroll instead of shrinking the table. */
 .table-page {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(480px, 1fr) auto;
   flex: 1;
   min-inline-size: 0;
-  min-block-size: 0;
+  min-block-size: min-content;
   padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
 }
 .table-header {
@@ -294,14 +294,14 @@ input:focus-visible {
 }
 .table-badge h1 {
   margin: 0;
-  font-size: 12px;
+  font-size: 16px;
   text-transform: capitalize;
 }
 .table-badge small {
   display: block;
   margin-block-start: 2px;
   color: var(--ink-dim);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -384,7 +384,7 @@ input:focus-visible {
 }
 .table-wordmark {
   color: #ece8db45;
-  font-size: clamp(9px, 2.8cqb, 14px);
+  font-size: clamp(12px, 2.8cqb, 18px);
   font-weight: 850;
   letter-spacing: 0.32em;
 }
@@ -399,7 +399,7 @@ input:focus-visible {
   max-inline-size: 48ch;
   margin: 0;
   color: #ece8dbb3;
-  font-size: clamp(10px, 2.6cqb, 13px);
+  font-size: clamp(14px, 2.6cqb, 18px);
   overflow-wrap: anywhere;
 }
 .pot-pill {
@@ -408,18 +408,18 @@ input:focus-visible {
   gap: 0.45rem;
   border: 1px solid var(--gold-line);
   border-radius: 999px;
-  padding: 4px 12px;
+  padding: 6px 18px;
   background: #0a1811a6;
 }
 .pot-pill span {
   color: var(--gold);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .pot-pill strong {
-  font-size: clamp(12px, 3.7cqb, 20px);
+  font-size: clamp(22px, 4.5cqb, 32px);
   font-variant-numeric: tabular-nums;
 }
 .community,
@@ -431,45 +431,47 @@ input:focus-visible {
 }
 .community {
   gap: clamp(3px, 0.8cqi, 9px);
-  --card-w: clamp(24px, min(6.8cqi, 13cqb), 66px);
+  --card-w: clamp(40px, min(7cqi, 15cqb), 100px);
 }
 .mini-hand {
   flex-shrink: 0;
   gap: 4px;
 }
 .result-trigger.ghost {
-  min-block-size: 28px;
-  padding: 4px 10px;
+  min-block-size: 44px;
+  padding: 8px 12px;
   border-color: var(--gold-line);
   color: var(--gold);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .seat {
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   justify-content: space-between;
-  inline-size: min(100%, 204px);
+  inline-size: min(100%, 320px);
   min-inline-size: 0;
   min-block-size: 0;
-  padding: clamp(5px, 1.8cqb, 12px);
+  padding: clamp(8px, 1.2cqi, 16px);
   gap: clamp(4px, 1.4cqb, 10px);
   border-radius: 12px;
   background: #111b17ee;
   box-shadow: 0 8px 25px #0004;
-  --card-w: clamp(18px, min(3.5cqi, 8cqb), 36px);
+  --card-w: clamp(36px, min(4.5cqi, 9cqb), 56px);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease,
     opacity 0.15s ease;
 }
 .seat.hero {
-  inline-size: min(100%, 280px);
+  inline-size: min(100%, 380px);
   flex-direction: row;
   align-items: center;
   border-color: var(--gold-line);
   background: #1b2920;
+  --card-w: clamp(44px, min(5cqi, 11cqb), 72px);
 }
 .seat.active {
   border-color: var(--gold);
@@ -492,14 +494,29 @@ input:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: clamp(9px, 2.3cqb, 11px);
+  font-size: clamp(12px, 1cqi, 14px);
   line-height: 1.5;
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
+.chip-count {
+  margin-block: 3px;
+  color: var(--gold);
+  font-size: clamp(16px, 2cqi, 22px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chip-count span {
+  font-size: 0.75em;
+  font-weight: 500;
+}
+.seat-info .seat-bet {
+  color: var(--ink);
+}
 .name-line {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   min-inline-size: 0;
 }
@@ -507,7 +524,7 @@ input:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: clamp(11px, 3cqb, 14px);
+  font-size: clamp(14px, 1.5cqi, 18px);
 }
 .name-line span {
   flex-shrink: 0;
@@ -516,11 +533,11 @@ input:focus-visible {
   padding: 1px 4px;
   color: var(--gold);
   background: #e5b95a1f;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
 }
 
-@container table-felt (max-width: 600px) and (min-height: 300px) {
+@container table-felt (max-width: 680px) {
   .felt-grid {
     grid-template-areas:
       "slot-3 slot-3"
@@ -536,41 +553,68 @@ input:focus-visible {
     gap: min(1.4cqb, 9px);
   }
   .community {
-    --card-w: clamp(26px, min(10cqi, 9cqb), 48px);
+    --card-w: clamp(44px, min(14cqi, 10cqb), 72px);
   }
   .seat {
-    inline-size: min(100%, 200px);
+    inline-size: min(100%, 280px);
     flex-direction: row;
     align-items: center;
-    --card-w: clamp(18px, min(5.8cqi, 5cqb), 28px);
+    padding: 8px;
+    gap: 6px;
+    --card-w: clamp(30px, min(8cqi, 6cqb), 44px);
   }
   .seat.hero {
-    inline-size: min(85%, 250px);
+    inline-size: min(100%, 360px);
+    --card-w: clamp(44px, min(12cqi, 9cqb), 64px);
+  }
+  .seat:not(.hero) .mini-hand {
+    gap: 0;
+  }
+  .seat:not(.hero) .mini-hand .card + .card {
+    margin-inline-start: -12px;
+    transform: translateY(8px);
+  }
+  .seat:not(.hero) .seat-presence {
+    display: none;
+  }
+  .felt-grid:is([data-players="0"], [data-players="1"], [data-players="2"]) {
+    grid-template-areas: "slot-3" "board" "slot-0";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  .felt-grid[data-players="5"] {
+    grid-template-areas: "slot-2 slot-4" "board board" "slot-1 slot-5" "slot-0 slot-0";
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .felt-grid[data-players="3"] {
+    grid-template-areas: "slot-2 slot-4" "board board" "slot-0 slot-0";
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
+  }
+  .felt-grid[data-players="4"] {
+    grid-template-areas: "slot-3 slot-3" "slot-2 slot-4" "board board" "slot-0 slot-0";
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1fr);
   }
   .table-wordmark {
     display: none;
   }
 }
-@container table-felt (max-height: 300px) {
-  .seat {
-    flex-direction: row;
-    align-items: center;
-    --card-w: clamp(17px, 8cqb, 25px);
-  }
-  .table-wordmark {
-    display: none;
-  }
-  .community {
-    --card-w: clamp(22px, 12cqb, 38px);
-  }
-  .board-zone {
+
+@container table-felt (max-width: 350px) {
+  .seat:not(.hero) {
+    padding: 6px;
     gap: 4px;
   }
-  .board-zone p {
-    font-size: 10px;
+  .seat:not(.hero) .mini-hand .card + .card {
+    margin-inline-start: -18px;
   }
-  .pot-pill {
-    padding: 2px 10px;
+  .name-line strong {
+    font-size: 14px;
+  }
+  .chip-count {
+    font-size: 16px;
+  }
+  .seat-info small {
+    font-size: 12px;
   }
 }
 
@@ -594,7 +638,7 @@ input:focus-visible {
   position: absolute;
   inset-block-start: 7%;
   inset-inline-start: 9%;
-  font-size: clamp(8px, calc(var(--card-w) * 0.27), 12px);
+  font-size: clamp(12px, calc(var(--card-w) * 0.27), 26px);
   line-height: 1.05;
 }
 .card .pip {
@@ -618,15 +662,17 @@ input:focus-visible {
 }
 
 .action-dock {
+  position: sticky;
+  inset-block-end: max(8px, env(safe-area-inset-bottom));
   z-index: 2;
   display: grid;
   justify-items: center;
   justify-self: center;
-  gap: 9px;
+  gap: 10px;
   min-inline-size: 0;
   max-inline-size: calc(100% - 24px);
   margin: 8px 12px 12px;
-  padding: 12px 24px;
+  padding: 16px 28px;
   border: 1px solid var(--gold-line);
   border-radius: 20px;
   background: #152018ed;
@@ -634,7 +680,7 @@ input:focus-visible {
 }
 .turn-note {
   color: #e9d2a1;
-  font-size: 10px;
+  font-size: 14px;
   white-space: nowrap;
   max-inline-size: min(60ch, 76vw);
   overflow: hidden;
@@ -649,14 +695,15 @@ input:focus-visible {
 .action-menu {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 10px;
   min-inline-size: 0;
 }
 .action-menu button {
-  min-inline-size: 60px;
-  min-block-size: 38px;
-  padding: 8px 16px;
-  font-size: 12px;
+  min-inline-size: 88px;
+  min-block-size: 48px;
+  padding: 10px 20px;
+  font-size: 16px;
   white-space: nowrap;
 }
 .action-menu button.active-amount {
@@ -664,9 +711,9 @@ input:focus-visible {
   filter: brightness(1.08);
 }
 .action-hint {
-  max-inline-size: 260px;
+  max-inline-size: 360px;
   color: var(--ink-dim);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
@@ -755,6 +802,16 @@ input:focus-visible {
   color: var(--ink-dim);
 }
 
+@media (max-width: 740px) {
+  .table-page {
+    grid-template-rows: auto minmax(620px, 1fr) auto;
+  }
+  .table-page:has(
+    .felt-grid:is([data-players="0"], [data-players="1"], [data-players="2"], [data-players="3"])
+  ) {
+    grid-template-rows: auto minmax(480px, 1fr) auto;
+  }
+}
 @media (max-width: 600px) {
   .table-header {
     padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
@@ -769,13 +826,20 @@ input:focus-visible {
     padding: 10px 8px;
     border-radius: 16px;
   }
+  .action-bar {
+    inline-size: 100%;
+  }
   .action-menu {
-    gap: 4px;
+    gap: 6px;
+    inline-size: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .action-menu button {
     min-inline-size: 0;
-    padding: 8px 10px;
-    font-size: 11px;
+    padding: 10px 2px;
+    font-size: 14px;
+    white-space: normal;
   }
 }
 @media (max-height: 500px) {
@@ -788,9 +852,6 @@ input:focus-visible {
   .action-dock {
     margin-block: 3px;
     padding-block: 5px;
-  }
-  .turn-note {
-    display: none;
   }
 }
 @media (forced-colors: active) {

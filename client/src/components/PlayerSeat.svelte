@@ -8,14 +8,15 @@
 <article class:active class:hero class:folded={player.folded} class="seat">
   <div class="seat-info">
     <div class="name-line">
-      <strong>{player.name}</strong>
+      <strong title={player.name}>{player.name}</strong>
       {#if player.dealer}<span>D</span>{/if}
       {#if player.smallBlind}<span>SB</span>{/if}
       {#if player.bigBlind}<span>BB</span>{/if}
       {#if player.allIn}<span>ALL IN</span>{/if}
     </div>
-    <small>{player.connected ? "online" : "away"} · {player.chips} chips · Buy-in {player.buyIns}</small>
-    {#if player.bet > 0}<small>Bet {player.bet}</small>{/if}
+    <strong class="chip-count">{player.chips} <span>chips</span></strong>
+    <small class="seat-presence">{player.connected ? "online" : "away"} · Buy-in {player.buyIns}</small>
+    {#if player.bet > 0}<small class="seat-bet">Bet {player.bet}</small>{/if}
   </div>
   <div class="mini-hand">
     {#each player.cards as card}
