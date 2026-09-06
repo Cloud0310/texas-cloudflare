@@ -25,15 +25,13 @@
     oncancel: () => void;
   } = $props();
 
-  function startingAmount(): number {
-    return minimum;
-  }
-
   let amountPanel: HTMLDialogElement;
-  let amountInput: HTMLInputElement;
-  let selectedAmount = $state(startingAmount());
-  let sliderValue = $derived(sliderPositionFor(selectedAmount));
-  let valid = $state(true);
+  let selectedAmount = $state<number | undefined>();
+  let valid = $derived(
+    selectedAmount !== undefined && Number.isSafeInteger(selectedAmount) &&
+    selectedAmount >= minimum && selectedAmount <= maximum
+  );
+  let sliderValue = $derived(sliderPositionFor(valid ? (selectedAmount ?? minimum) : minimum));
   let title = $derived(action === "raise" ? "Raise to" : "Bet amount");
   let confirmLabel = $derived(action === "raise" ? "Confirm raise" : "Place bet");
   let quickAmounts = $derived.by(() => {
@@ -47,6 +45,7 @@
   });
 
   onMount(() => {
+    selectedAmount = minimum;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     amountPanel.showModal();
     return () => {
@@ -54,10 +53,6 @@
       opener?.focus();
     };
   });
-
-  function amountIsValid(amount: number): boolean {
-    return Number.isSafeInteger(amount) && amount >= minimum && amount <= maximum;
-  }
 
   function sliderPositionFor(amount: number): number {
     if (maximum <= minimum) return 0;
@@ -74,22 +69,11 @@
   }
 
   function setAmount(amount: number): void {
-    const next = clampAmount(amount, minimum, maximum);
-    amountInput.value = String(next);
-    selectedAmount = next;
-    valid = true;
-  }
-
-  function handleNumberInput(event: Event & { currentTarget: HTMLInputElement }): void {
-    const next = event.currentTarget.valueAsNumber;
-    valid = amountIsValid(next);
-    if (valid) selectedAmount = next;
+    selectedAmount = clampAmount(amount, minimum, maximum);
   }
 
   function confirm(): void {
-    const amount = amountInput.valueAsNumber;
-    valid = amountIsValid(amount);
-    if (valid) onconfirm(amount);
+    if (valid && selectedAmount !== undefined) onconfirm(selectedAmount);
   }
 
   function handleCancel(event: Event): void {
@@ -118,19 +102,31 @@
   onclick={handleBackdropClick}
 >
   <div class="amount-block">
-    <span>{title}</span>
+    <label for="manual-amount">{title} <span>(chips)</span></label>
     <input
-      bind:this={amountInput}
-      aria-label={title}
+      bind:value={selectedAmount}
+      id="manual-amount"
+      name="amount"
       type="number"
+      inputmode="numeric"
+      enterkeyhint="done"
+      required
       min={minimum}
       max={maximum}
-      step="5"
-      defaultValue={minimum}
+      step="1"
+      placeholder="Enter amount"
       aria-invalid={!valid}
-      oninput={handleNumberInput}
-      onkeydown={(event) => event.key === "Enter" && confirm()}
+      aria-describedby={valid ? "amount-help" : "amount-help amount-error"}
+      onkeydown={(event) => {
+        if (event.key === "Enter" && !event.isComposing) {
+          event.preventDefault();
+          confirm();
+        }
+      }}
     />
+    <small id="amount-help">{action === "raise"
+      ? "Type the total bet, including chips already bet."
+      : "Type an amount or use the slider."}</small>
   </div>
 
   <div class="amount-tuning">
@@ -139,7 +135,7 @@
     </div>
     <input
       aria-label="Amount slider"
-      aria-valuetext={`${selectedAmount} chips`}
+      aria-valuetext={valid ? `${selectedAmount} chips` : "Enter a valid amount"}
       type="range"
       min="0"
       max={SLIDER_STEPS}
@@ -152,7 +148,7 @@
         <button type="button" onclick={() => setAmount(quick.value)}>{quick.label}</button>
       {/each}
     </div>
-    {#if !valid}<span class="invalid-amount">Use a whole number between {minimum} and {maximum}.</span>{/if}
+    {#if !valid}<span id="amount-error" class="invalid-amount" role="status">Use a whole number between {minimum} and {maximum}.</span>{/if}
   </div>
 
   <div class="amount-actions">
@@ -176,7 +172,7 @@
     inset-inline-start: 50%;
     inset-inline-end: auto;
     display: grid;
-    grid-template-columns: 140px minmax(280px, 1fr) auto;
+    grid-template-columns: 200px minmax(280px, 1fr) auto;
     align-items: stretch;
     gap: 0;
     inline-size: min(920px, calc(100vw - 2rem));
@@ -196,29 +192,46 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.2rem;
+    gap: 0.5rem;
+    min-inline-size: 0;
     padding: 0.8rem 1rem;
     background: rgba(229, 185, 90, 0.1);
   }
 
-  .amount-block span {
+  .amount-block label {
     color: var(--ink-dim);
     font-size: 0.8rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
+  .amount-block label span {
+    font-weight: 500;
+    text-transform: none;
+  }
+
   .amount-block input {
-    min-block-size: 0;
-    border: 0;
-    border-radius: 0;
-    padding: 0;
+    min-inline-size: 0;
+    min-block-size: 52px;
+    border: 1px solid var(--gold-line);
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
     color: #f2d189;
-    background: transparent;
-    font-size: 2rem;
+    background: #070b09;
+    font-size: 1.75rem;
     font-weight: 850;
     font-variant-numeric: tabular-nums;
+  }
+
+  .amount-block input[aria-invalid="true"] {
+    border-color: #ff9c9c;
+  }
+
+  .amount-block small {
+    color: var(--ink-dim);
+    font-size: 0.8rem;
+    line-height: 1.4;
   }
 
   .amount-tuning {
@@ -292,7 +305,7 @@
 
   @media (max-width: 760px) {
     .amount-panel {
-      grid-template-columns: 112px 1fr;
+      grid-template-columns: 180px minmax(0, 1fr);
     }
 
     .amount-actions {
@@ -309,13 +322,7 @@
     }
 
     .amount-block {
-      align-items: center;
       padding-block: 0.55rem;
-    }
-
-    .amount-block input {
-      inline-size: 7rem;
-      text-align: center;
     }
 
     .quick-amounts {
