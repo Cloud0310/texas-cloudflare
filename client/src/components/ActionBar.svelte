@@ -13,12 +13,14 @@
   let {
     tableState,
     playerId,
+    connected = true,
     onaction,
     onstart,
     onnextHand
   }: {
     tableState: TableState;
     playerId: string;
+    connected?: boolean;
     onaction: (action: PlayerAction) => void;
     onstart: () => void;
     onnextHand: () => void;
@@ -35,7 +37,7 @@
   let currentActor = $derived(
     tableState.players.find((player) => player.id === tableState.currentPlayerId),
   );
-  let canAct = $derived(isTurn && Boolean(hero) && !hero?.folded && !hero?.allIn && (hero?.chips ?? 0) > 0);
+  let canAct = $derived(connected && isTurn && Boolean(hero) && !hero?.folded && !hero?.allIn && (hero?.chips ?? 0) > 0);
   let livePot = $derived(livePotForState(tableState));
   let streetBet = $derived(currentStreetBet(tableState, currentActor));
   let hasStreetBet = $derived(streetBet > 0);
@@ -66,9 +68,9 @@
   {#if waitingForPlayers}
     <span class="action-hint">Waiting for another player. Open Table menu to copy the invite.</span>
   {:else if canStart}
-    <button onclick={onstart}>Start hand</button>
+    <button disabled={!connected} onclick={onstart}>Start hand</button>
   {:else if complete}
-    <button onclick={onnextHand}>Next hand</button>
+    <button disabled={!connected} onclick={onnextHand}>Next hand</button>
   {:else}
     <div class="action-menu" aria-label="Poker actions">
       <button class="danger" disabled={!canAct} onclick={() => onaction({ type: "fold" })}>Fold</button>

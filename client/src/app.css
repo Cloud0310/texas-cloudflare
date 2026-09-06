@@ -725,26 +725,6 @@ input:focus-visible {
   line-height: 1.4;
   text-align: center;
 }
-.table-notice {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(68px + env(safe-area-inset-top));
-  inset-inline-start: 50%;
-  inline-size: max-content;
-  max-inline-size: min(90%, 500px);
-  margin: 0;
-  padding: 10px 16px;
-  border: 1px solid #ff9c9c55;
-  border-radius: 12px;
-  background: #251916f2;
-  box-shadow: var(--shadow);
-  color: #ffbbbb;
-  font-size: 12px;
-  text-align: center;
-  overflow-wrap: anywhere;
-  transform: translateX(-50%);
-}
-
 .hand-results {
   position: fixed;
   inset: 0;

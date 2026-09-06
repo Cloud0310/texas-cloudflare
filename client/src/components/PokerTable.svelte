@@ -31,7 +31,6 @@
   let {
     tableState,
     playerId,
-    notice = "",
     connectionStatus,
     onaction,
     onstart,
@@ -40,7 +39,6 @@
   }: {
     tableState: TableState;
     playerId: string;
-    notice?: string;
     connectionStatus: "connecting" | "connected" | "reconnecting" | "offline";
     onaction: (action: PlayerAction) => void;
     onstart: () => void;
@@ -116,10 +114,8 @@
     </div>
   </div>
 
-  {#if notice}<p class="table-notice" role="alert">{notice}</p>{/if}
-
   <footer class="action-dock">
     <span class="turn-note" title={actionPrompt}>{actionPrompt}</span>
-    <ActionBar {tableState} {playerId} {onaction} {onstart} {onnextHand} />
+    <ActionBar {tableState} {playerId} {onaction} {onstart} {onnextHand} connected={connectionStatus === "connected"} />
   </footer>
 </section>

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { heroForState, type PlayerAction, type ServerMessage, type TableState } from "@texas/shared";
+  import { heroForState, type ClientMessage, type JoinResponse, type ServerMessage, type TableState } from "@texas/shared";
+  import { onMount } from "svelte";
+  import GameNotifications, { type GameNotification } from "./components/GameNotifications.svelte";
   import Lobby from "./components/Lobby.svelte";
   import PokerTable from "./components/PokerTable.svelte";
   import { connectTable, sendMessage } from "./lib/socket";
@@ -14,12 +16,35 @@
     params.get("player") ?? (invitedTableId ? null : localStorage.getItem("playerId"));
   let state: TableState | null = null;
   let socket: WebSocket | null = null;
-  let notice = "";
+  let notifications: GameNotification[] = [];
+  let notificationId = 0;
   let connectionStatus: ConnectionStatus = tableId && playerId ? "connecting" : "offline";
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempts = 0;
-  let shouldReconnect = true;
-  let replacingSocket = false;
+  let socketGeneration = 0;
+
+  function notify(kind: GameNotification["kind"], title: string, message: string): void {
+    notifications = [
+      ...notifications.filter((item) => item.kind !== kind || item.message !== message),
+      { id: ++notificationId, kind, title, message, expiresAt: kind === "error" ? null : Date.now() + (kind === "turn" ? 8_000 : 5_000) },
+    ].slice(-3);
+  }
+
+  function dismissNotification(id: number): void {
+    notifications = notifications.filter((item) => item.id !== id);
+  }
+
+  function acceptState(next: TableState): void {
+    const reconnected = connectionStatus === "reconnecting";
+    const myTurn = next.currentPlayerId === playerId;
+    const newTurn = myTurn && (state?.currentPlayerId !== playerId || state?.handNumber !== next.handNumber || state?.phase !== next.phase);
+    state = next;
+    connectionStatus = "connected";
+    reconnectAttempts = 0;
+    if (!myTurn || newTurn) notifications = notifications.filter((item) => item.kind !== "turn");
+    if (reconnected) notify("success", "Reconnected", myTurn ? "It's your turn. Choose your next action at the table." : "Your table is up to date. You can continue playing.");
+    else if (newTurn) notify("turn", "Your turn", "Choose your next action at the table.");
+  }
 
   function setSessionUrl(nextTableId: string, nextPlayerId: string): void {
     const next = new URL(window.location.href);
@@ -48,6 +73,9 @@
   }
 
   function clearPlayerSession(): void {
+    socketGeneration += 1;
+    clearReconnectTimer();
+    connectionStatus = "offline";
     localStorage.removeItem("playerId");
     playerId = null;
     state = null;
@@ -66,38 +94,29 @@
 
   function openSocket(id: string, pid: string | null) {
     clearReconnectTimer();
-    if (socket) {
-      replacingSocket = true;
-      socket.close();
-    }
+    const generation = ++socketGeneration;
+    socket?.close();
+    socket = null;
     if (!pid) return;
     connectionStatus = reconnectAttempts > 0 ? "reconnecting" : "connecting";
     socket = connectTable(id, pid, {
-      onOpen: handleSocketOpen,
-      onMessage: handleSocketMessage,
-      onClose: scheduleReconnect,
-      onError: scheduleReconnect,
+      onMessage: (message) => { if (generation === socketGeneration) handleSocketMessage(message); },
+      onClose: () => { if (generation === socketGeneration) scheduleReconnect(); },
+      onError: () => { if (generation === socketGeneration) scheduleReconnect(); },
       onInvalidMessage: () => {
-        notice = "Received an invalid table update. Waiting for the next update.";
+        if (generation === socketGeneration) notify("error", "Table update failed", "Received an invalid table update. Waiting for the next update.");
       },
     });
   }
 
-  function handleSocketOpen(): void {
-    reconnectAttempts = 0;
-    connectionStatus = "connected";
-    notice = "";
-  }
-
   function scheduleReconnect(): void {
-    if (replacingSocket) {
-      replacingSocket = false;
-      return;
-    }
-    if (!shouldReconnect || !tableId || !playerId || reconnectTimer) return;
+    if (!tableId || !playerId || reconnectTimer) return;
 
+    socketGeneration += 1;
+    socket?.close();
     socket = null;
     connectionStatus = "reconnecting";
+    notifications = notifications.filter((item) => item.kind !== "turn");
     const delay = Math.min(8_000, 500 * 2 ** reconnectAttempts);
     reconnectAttempts += 1;
     reconnectTimer = setTimeout(() => {
@@ -109,40 +128,39 @@
   function handleSocketMessage(message: ServerMessage) {
     if (message.type === "snapshot") {
       if (playerId && !heroForState(message.state, playerId)) {
-        notice = "This saved seat no longer exists. Join the table again.";
+        notify("error", "Seat unavailable", "This saved seat no longer exists. Join the table again.");
         clearPlayerSession();
         return;
       }
-      state = message.state;
+      acceptState(message.state);
     }
     if (message.type === "joined") {
       playerId = message.playerId;
-      state = message.state;
+      acceptState(message.state);
       saveSession(tableId, message.playerId);
     }
-    if (message.type === "error") notice = message.message;
+    if (message.type === "error") notify("error", "Action failed", message.message);
   }
 
-  function sendAction(action: PlayerAction): void {
-    if (!sendMessage(socket, { type: "action", action })) notice = "Reconnecting. Try again in a moment.";
+  function send(message: ClientMessage): void {
+    notifications = notifications.filter((item) => item.kind !== "error" && (message.type !== "action" || item.kind !== "turn"));
+    if (!sendMessage(socket, message)) {
+      notify("error", "Action not sent", "Your action was not sent. Please try again.");
+      scheduleReconnect();
+    }
   }
 
-  function sendTableMessage(type: "start" | "nextHand"): void {
-    if (!sendMessage(socket, { type })) notice = "Reconnecting. Try again in a moment.";
-  }
-
-  function handleJoined(event: CustomEvent<{ tableId: string; playerId: string; state: TableState }>) {
-    tableId = event.detail.tableId;
-    playerId = event.detail.playerId;
-    state = event.detail.state;
+  function handleJoined(joined: JoinResponse) {
+    tableId = joined.tableId;
+    playerId = joined.playerId;
+    state = joined.state;
     saveSession(tableId, playerId);
-    shouldReconnect = true;
     reconnectAttempts = 0;
     openSocket(tableId, playerId);
   }
 
   function resetTable() {
-    shouldReconnect = false;
+    socketGeneration += 1;
     clearReconnectTimer();
     clearSession();
     socket?.close();
@@ -150,26 +168,40 @@
     tableId = "";
     playerId = null;
     state = null;
-    notice = "";
+    notifications = [];
     connectionStatus = "offline";
   }
 
-  $: if (tableId && playerId && !socket) openSocket(tableId, playerId);
+  onMount(() => {
+    if (tableId && playerId) openSocket(tableId, playerId);
+    return () => {
+      socketGeneration += 1;
+      clearReconnectTimer();
+      socket?.close();
+    };
+  });
+
+  $: myTurn = connectionStatus === "connected" && state?.currentPlayerId === playerId && Boolean(playerId);
 </script>
+
+<svelte:head>
+  <title>{myTurn ? "Your turn · " : connectionStatus === "reconnecting" ? "Reconnecting · " : ""}Texas Hold'em</title>
+</svelte:head>
+
+<GameNotifications {notifications} {connectionStatus} hasSession={Boolean(tableId && playerId)} ondismiss={dismissNotification} />
 
 <main class="app-shell">
   {#if state && tableId && playerId}
     <PokerTable
       tableState={state}
       {playerId}
-      {notice}
       {connectionStatus}
-      onaction={sendAction}
-      onstart={() => sendTableMessage("start")}
-      onnextHand={() => sendTableMessage("nextHand")}
+      onaction={(action) => send({ type: "action", action })}
+      onstart={() => send({ type: "start" })}
+      onnextHand={() => send({ type: "nextHand" })}
       onleave={resetTable}
     />
   {:else}
-    <Lobby {tableId} onjoined={(detail) => handleJoined(new CustomEvent("joined", { detail }))} />
+    <Lobby {tableId} onjoined={handleJoined} />
   {/if}
 </main>

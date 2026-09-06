@@ -2,7 +2,6 @@ import type { ClientMessage, ServerMessage } from "@texas/shared";
 import { socketUrl } from "./api";
 
 export type SocketCallbacks = {
-  onOpen?: () => void;
   onMessage: (message: ServerMessage) => void;
   onClose?: () => void;
   onError?: () => void;
@@ -15,7 +14,6 @@ export function connectTable(
   callbacks: SocketCallbacks,
 ): WebSocket {
   const socket = new WebSocket(socketUrl(tableId, playerId));
-  socket.addEventListener("open", () => callbacks.onOpen?.());
   socket.addEventListener("message", (event) => {
     try {
       callbacks.onMessage(JSON.parse(String(event.data)) as ServerMessage);
@@ -30,6 +28,10 @@ export function connectTable(
 
 export function sendMessage(socket: WebSocket | null, message: ClientMessage): boolean {
   if (socket?.readyState !== WebSocket.OPEN) return false;
-  socket.send(JSON.stringify(message));
-  return true;
+  try {
+    socket.send(JSON.stringify(message));
+    return true;
+  } catch {
+    return false;
+  }
 }
