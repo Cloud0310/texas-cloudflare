@@ -8,6 +8,7 @@
   } from "@texas/shared";
   import ActionBar from "./ActionBar.svelte";
   import Card from "./Card.svelte";
+  import HandResults from "./HandResults.svelte";
   import PlayerSeat from "./PlayerSeat.svelte";
   import TableStatusMenu from "./TableStatusMenu.svelte";
 
@@ -82,7 +83,10 @@
         <small>Hand {tableState.handNumber}</small>
       </div>
     </div>
-    <TableStatusMenu {tableState} {connectionStatus} {onleave} />
+    <div class="table-tools">
+      <HandResults {tableState} />
+      <TableStatusMenu {tableState} {connectionStatus} {onleave} />
+    </div>
   </header>
 
   <div class="felt">
@@ -107,11 +111,7 @@
             <Card card={tableState.community[index] ?? null} />
           {/each}
         </div>
-        {#if tableState.winners.length}
-          <button type="button" class="result-trigger ghost" popovertarget="hand-results">View hand result ↗</button>
-        {:else}
-          <p title={tableState.message}>{tableState.message}</p>
-        {/if}
+        <p title={tableState.message} role="status">{tableState.message}</p>
       </div>
     </div>
   </div>
@@ -122,22 +122,4 @@
     <span class="turn-note" title={actionPrompt}>{actionPrompt}</span>
     <ActionBar {tableState} {playerId} {onaction} {onstart} {onnextHand} />
   </footer>
-
-  {#if tableState.winners.length}
-    <div id="hand-results" popover="auto" role="dialog" aria-label="Hand results" class="hand-results">
-      <header>
-        <h2>Hand {tableState.handNumber} results</h2>
-        <button type="button" class="ghost" popovertarget="hand-results" popovertargetaction="hide" aria-label="Close results">×</button>
-      </header>
-      <p>{tableState.message}</p>
-      <ul>
-        {#each tableState.winners as winner}
-          <li>
-            <strong>{winner.name} <span>+{winner.amount}</span></strong>
-            <small>{winner.description}</small>
-          </li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
 </section>
